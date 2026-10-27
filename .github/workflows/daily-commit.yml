@@ -1,0 +1,67 @@
+# daily-commit-0.0.6.yml
+# github.com/shenjuexiao
+# 20261026
+
+# .github/workflows/daily-commit.yml
+name: daily-commit
+
+on:
+  schedule:
+    # 每天0点、8点、16点触发
+    - cron: '0 0,8,16 * * *'
+  # 支持手动触发
+  workflow_dispatch:
+
+jobs:
+  commit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Git
+        run: |
+          git config --global user.name "niukouwa"
+          git config --global user.email "niukouwa@qq.com"
+
+      - name: Generate random commits
+        run: |
+          # 生成0-3之间的随机数
+          RANDOM_NUM=$(($RANDOM % 4))
+          COMMIT_COUNT=$RANDOM_NUM   # 0~3 直接就是提交次数
+
+          CURRENT_TIME=$(date '+%Y-%m-%d %H:%M:%S')
+
+          # 先把随机内容全部收集到临时文件（只收集，不写正式文件）
+          ACTUAL_COUNT=0
+          : > /tmp/commit_lines.txt
+          for i in $(seq 1 $COMMIT_COUNT); do
+            RANDOM_CONTENT="Random commit #${i} at $(date '+%Y-%m-%d %H:%M:%S') - RANDOM: $(($RANDOM % 10000))"
+            echo "- ${RANDOM_CONTENT}" >> /tmp/commit_lines.txt
+            ACTUAL_COUNT=$((ACTUAL_COUNT + 1))
+          done
+
+          # 若本轮没有随机内容，直接结束，不产生任何提交
+          if [ "$ACTUAL_COUNT" -eq 0 ]; then
+            echo "no random content this round"
+            exit 0
+          fi
+
+          # 一次性写入：空行 + 摘要行 + 随机内容（只写一遍）
+          {
+            echo ""
+            echo "### 🕐 ${CURRENT_TIME} | 随机数: ${RANDOM_NUM} | 计划次数: ${COMMIT_COUNT} | 执行次数: ${ACTUAL_COUNT}"
+            cat /tmp/commit_lines.txt
+          } >> daily-commit.md
+
+          git add daily-commit.md
+          git commit -m "Daily commit ${ACTUAL_COUNT}x - $(date '+%Y-%m-%d %H:%M:%S')"
+          git push origin main
+
+      - name: Display result
+        run: |
+          echo "=== 最新提交记录 ==="
+          tail -n 10 daily-commit.md
